@@ -399,7 +399,7 @@ const TYL={عايشة:'طوارئ',البراء:'مصاريف',فاطمة:'م+ط
 const TYC={عايشة:'em',البراء:'exp',فاطمة:'mix',بلقيس:'exp',عبدالله:'exp'};
 const FB={'مصاريف':'g','طوارئ':'b','كهرباء':'e'};
 
-let D=null, isAdmin=false, pin='';
+let D=null, isAdmin=false, pin='', pendingAction=null;
 
 // ========== DATA ==========
 async function loadData(){
@@ -570,7 +570,6 @@ function buildNames(pre){
 document.getElementById('payMonth').addEventListener('change',()=>buildNames(null));
 async function doPay(name){
   const month=document.getElementById('payMonth').value;
-
   // تحقق محلي من التكرار
   const mp=month===D.currentMonth
     ?D.payments||{}
@@ -580,27 +579,26 @@ async function doPay(name){
     closeModal('payModal');
     return;
   }
-
   closeModal('payModal');
-
   // تحديث فوري للواجهة
   if(month===D.currentMonth){
     if(!D.payments) D.payments={};
     const now=new Date();
     const dd=String(now.getDate()).padStart(2,'0');
     const mm=String(now.getMonth()+1).padStart(2,'0');
-    const yy=now.getFullYear();
-    D.payments[name]={مصاريف:0,طوارئ:0,date:`${dd}/${mm}/${yy} ...`};
+    D.payments[name]={مصاريف:0,طوارئ:0,date:`${dd}/${mm}/${now.getFullYear()} ...`};
     renderPayments();
   }
-
   await apiCall(`action=pay&name=${enc(name)}&month=${enc(month)}`);
 }
 
 // ========== FIXED ==========
-async function doFixed(){
+function doFixed(){
   if(!D||D.currentFixedPaid) return;
-  await apiCall(`action=fixed&month=${enc(D.currentMonth)}`);
+  // طلب PIN قبل التنفيذ
+  pin='';updPin();
+  pendingAction='fixed';
+  document.getElementById('pinModal').classList.remove('hidden');
 }
 
 // ========== PIN ==========
@@ -613,16 +611,23 @@ function pinPress(d){
   if(pin.length>=4) return;
   pin+=d;updPin();
   if(pin.length===4){
-    setTimeout(()=>{
+    setTimeout(async()=>{
       if(pin===PIN){
-        isAdmin=true;
         closeModal('pinModal');
-        updAdminBtn();
-        renderPayments();
-        openAdmin();
+        if(pendingAction==='fixed'){
+          pendingAction=null;pin='';updPin();
+          await apiCall(`action=fixed&month=${enc(D.currentMonth)}`);
+        } else {
+          isAdmin=true;
+          updAdminBtn();
+          renderPayments();
+          openAdmin();
+          pin='';updPin();
+        }
       } else {
         toast('رمز خاطئ',1);
         pin='';updPin();
+        pendingAction=null;
       }
     },200);
   }
@@ -659,12 +664,10 @@ async function saveElec(){
   const month=document.getElementById('aElecMonth').value;
   const inv=g('aInvoice'),paid=g('aPaid');
   if(!inv||!paid){toast('أدخل الفاتورة والمدفوع',1);return;}
-
-  // تحديث فوري للجدول
+  // تحديث فوري
   if(!D.elecByMonth) D.elecByMonth={};
   D.elecByMonth[month]={invoice:Number(inv),paid:Number(paid)};
   renderElec();
-
   await apiCall(`action=elec&month=${enc(month)}&invoice=${inv}&paid=${paid}`);
 }
 async function doWithdraw(){
