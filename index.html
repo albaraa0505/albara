@@ -227,11 +227,11 @@ body{font-family:'IBM Plex Sans Arabic',sans-serif;background:var(--bg);color:va
     <div class="modal-title">⚙️ لوحة الأدمن</div>
 
     <div class="modal-sec">الأرصدة الافتتاحية</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">الرصيد الافتتاحي للمصاريف الشهرية (د)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px">الرصيد الافتتاحي للمصاريف الشهرية (د)</div>
     <input class="m-input" type="number" id="aOpenExp"  placeholder="0" step="0.5">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">الرصيد الافتتاحي للكهرباء (د)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px">الرصيد الافتتاحي للكهرباء (د)</div>
     <input class="m-input" type="number" id="aOpenElec" placeholder="0" step="0.5">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">الرصيد الافتتاحي للطوارئ (د)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px">الرصيد الافتتاحي للطوارئ (د)</div>
     <input class="m-input" type="number" id="aOpenEm"   placeholder="0" step="0.5">
     <button class="modal-confirm" onclick="saveSettings()">💾 حفظ الأرصدة الافتتاحية</button>
 
@@ -323,9 +323,9 @@ body{font-family:'IBM Plex Sans Arabic',sans-serif;background:var(--bg);color:va
     <div class="info-box">
       <div class="info-title">📋 توضيح بشأن ميزانية الشاليه</div>
       <div class="info-body" id="infoBody">
-        <div class="info-item"><span class="info-dot">◆</span><span>طريقة توزيع المبالغ الشهرية:</span></div>
-        <div class="info-item"><span class="info-dot">◆</span><span>حساب الطوارئ: عائشة 12 دينار شهريًا، وفاطمة 6 دينار شهريًا</span></div>
-        <div class="info-item"><span class="info-dot">◆</span><span>حساب المصاريف الشهرية: البراء وبلقيس وعبدالله 12 دينار شهريا، وفاطمة 6 دينار شهريًا .</span></div>
+        <div class="info-item"><span class="info-dot">◆</span><span>أضف النص التوضيحي هنا من الكود — مثل: من يحول لأي حساب، وفكرة كل صندوق، وطريقة توزيع الاشتراكات.</span></div>
+        <div class="info-item"><span class="info-dot">◆</span><span>عايشة وفاطمة (جزء) يحولون لحساب الطوارئ.</span></div>
+        <div class="info-item"><span class="info-dot">◆</span><span>البراء وفاطمة (جزء) وبلقيس وعبدالله يحولون لحساب المصاريف.</span></div>
       </div>
     </div>
   </div>
@@ -387,7 +387,7 @@ body{font-family:'IBM Plex Sans Arabic',sans-serif;background:var(--bg);color:va
 </div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbyLM0KwiBar9CiqCaKmd8ZmzH_IUD5f8tllVLB4c4x_519CQEfNlBbzE2aczcaVNiQL/exec';
+const API = 'https://script.google.com/macros/s/AKfycbz1WVf7zvtUcRCsc0Mc864ZDbGxWQAHYqqA2lRjxJ_B5xFHf_-IDV-zzGLPrtKp_0Cg/exec';
 const PIN  = '1990'; // ← عدّل هنا
 // ← عدّل الآيبانات هنا:
 const IBAN_EXP = 'BH95ALSA00694347151002';
@@ -571,16 +571,26 @@ document.getElementById('payMonth').addEventListener('change',()=>buildNames(nul
 async function doPay(name){
   const month=document.getElementById('payMonth').value;
 
-  // تحقق محلي سريع قبل الإرسال
-  const mp=month===D.currentMonth?D.payments||{}:(D.archive&&D.archive[month]?D.archive[month].payments||{}:{});
-  if(mp[name]){toast('تم تسجيل هذه الدفعة مسبقاً ✅',0);closeModal('payModal');return;}
+  // تحقق محلي من التكرار
+  const mp=month===D.currentMonth
+    ?D.payments||{}
+    :(D.archive&&D.archive[month]?D.archive[month].payments||{}:{});
+  if(mp[name]){
+    toast('تم تسجيل هذه الدفعة مسبقاً ✅');
+    closeModal('payModal');
+    return;
+  }
 
   closeModal('payModal');
 
-  // تحديث فوري للواجهة قبل انتظار الـ API
+  // تحديث فوري للواجهة
   if(month===D.currentMonth){
     if(!D.payments) D.payments={};
-    D.payments[name]={مصاريف:0,طوارئ:0,date:new Date().toLocaleDateString('en-GB').replace(/\//g,'/')+ ' ...'};
+    const now=new Date();
+    const dd=String(now.getDate()).padStart(2,'0');
+    const mm=String(now.getMonth()+1).padStart(2,'0');
+    const yy=now.getFullYear();
+    D.payments[name]={مصاريف:0,طوارئ:0,date:`${dd}/${mm}/${yy} ...`};
     renderPayments();
   }
 
@@ -650,7 +660,7 @@ async function saveElec(){
   const inv=g('aInvoice'),paid=g('aPaid');
   if(!inv||!paid){toast('أدخل الفاتورة والمدفوع',1);return;}
 
-  // تحديث فوري للجدول قبل انتظار الـ API
+  // تحديث فوري للجدول
   if(!D.elecByMonth) D.elecByMonth={};
   D.elecByMonth[month]={invoice:Number(inv),paid:Number(paid)};
   renderElec();
