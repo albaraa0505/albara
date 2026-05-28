@@ -414,15 +414,17 @@ async function loadData(){
   document.getElementById('lo').style.display='none';
 }
 
-async function apiCall(params, delayRefresh=false){
+async function apiCall(params){
   ss('L','يحفظ...');
   try{
     const j=await(await fetch(API+'?'+params+'&t='+Date.now())).json();
     if(!j.ok){toast(j.error,1);ss('E','خطأ');return false;}
     toast(j.message);
-    ss('ok','محفوظ ✓');
-    if(delayRefresh){
-      setTimeout(()=>loadData(),4000);
+    // لو الرد يحتوي بيانات كاملة (recordPayment/recordFixed)، حدّث مباشرة بدون طلب ثاني
+    if(j.currentMonth){
+      D=j;
+      render();
+      ss('ok','متزامن');
     } else {
       await loadData();
     }
@@ -587,17 +589,7 @@ async function doPay(name){
     return;
   }
   closeModal('payModal');
-  // تحديث فوري للواجهة بالمبالغ الصحيحة
-  if(month===D.currentMonth){
-    if(!D.payments) D.payments={};
-    const now=new Date();
-    const dd=String(now.getDate()).padStart(2,'0');
-    const mm=String(now.getMonth()+1).padStart(2,'0');
-    const funds={عايشة:{مصاريف:0,طوارئ:12},البراء:{مصاريف:12,طوارئ:0},فاطمة:{مصاريف:6,طوارئ:6},بلقيس:{مصاريف:12,طوارئ:0},عبدالله:{مصاريف:12,طوارئ:0}};
-    D.payments[name]={...(funds[name]||{مصاريف:12,طوارئ:0}),date:`${dd}/${mm}/${now.getFullYear()}`};
-    renderPayments();
-  }
-  await apiCall(`action=pay&name=${enc(name)}&month=${enc(month)}`, true);
+  await apiCall(`action=pay&name=${enc(name)}&month=${enc(month)}`);
 }
 
 // ========== FIXED ==========
@@ -624,7 +616,7 @@ function pinPress(d){
         closeModal('pinModal');
         if(pendingAction==='fixed'){
           pendingAction=null;pin='';updPin();
-          await apiCall(`action=fixed&month=${enc(D.currentMonth)}`, true);
+          await apiCall(`action=fixed&month=${enc(D.currentMonth)}`);
         } else {
           isAdmin=true;
           updAdminBtn();
