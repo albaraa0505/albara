@@ -420,11 +420,9 @@ async function apiCall(params){
     const j=await(await fetch(API+'?'+params+'&t='+Date.now())).json();
     if(!j.ok){toast(j.error,1);ss('E','خطأ');return false;}
     toast(j.message);
-    // لو الرد يحتوي بيانات كاملة (recordPayment/recordFixed)، حدّث مباشرة بدون طلب ثاني
+    // لو الرد يحتوي بيانات كاملة (pay/fixed)، حدّث مباشرة بدون طلب ثاني
     if(j.currentMonth){
-      D=j;
-      render();
-      ss('ok','متزامن');
+      D=j;render();ss('ok','متزامن');
     } else {
       await loadData();
     }
@@ -589,6 +587,15 @@ async function doPay(name){
     return;
   }
   closeModal('payModal');
+  // تحديث فوري للواجهة
+  if(month===D.currentMonth){
+    if(!D.payments) D.payments={};
+    const now=new Date();
+    const dd=String(now.getDate()).padStart(2,'0');
+    const mm=String(now.getMonth()+1).padStart(2,'0');
+    D.payments[name]={مصاريف:0,طوارئ:0,date:`${dd}/${mm}/${now.getFullYear()} ...`};
+    renderPayments();
+  }
   await apiCall(`action=pay&name=${enc(name)}&month=${enc(month)}`);
 }
 
