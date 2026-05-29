@@ -400,14 +400,33 @@ const TYC={عايشة:'em',البراء:'exp',فاطمة:'mix',بلقيس:'exp',
 const FB={'مصاريف':'g','طوارئ':'b','كهرباء':'e'};
 
 let D=null, isAdmin=false, pin='', pendingAction=null;
+// قائمة محلية للدفعات المسجّلة في هذه الجلسة — لا تُمسح بالـ loadData
+const localPaid = {}; // key: "name|month" → بيانات الدفعة
 
 // ========== DATA ==========
+function mergeLocalPaid(){
+  // ادمج القائمة المحلية فوق بيانات الشيت — تأخذ الأولوية دائماً
+  if(!D||!D.payments) return;
+  Object.keys(localPaid).forEach(key=>{
+    const [name,month]=key.split('|');
+    if(month===D.currentMonth){
+      D.payments[name]=localPaid[key];
+    }
+    // للأرشيف
+    if(D.archive&&D.archive[month]){
+      if(!D.archive[month].payments) D.archive[month].payments={};
+      D.archive[month].payments[name]=localPaid[key];
+    }
+  });
+}
+
 async function loadData(){
   ss('L','يحمّل...');
   try{
     const r=await fetch(API+'?action=data&t='+Date.now());
     D=await r.json();
     if(!D.ok) throw new Error(D.error);
+    mergeLocalPaid(); // دمج القائمة المحلية قبل الرندر
     render();
     ss('ok','متزامن');
   }catch(e){ss('E','خطأ');toast('تعذّر الاتصال',1);}
@@ -420,12 +439,8 @@ async function apiCall(params){
     const j=await(await fetch(API+'?'+params+'&t='+Date.now())).json();
     if(!j.ok){toast(j.error,1);ss('E','خطأ');return false;}
     toast(j.message);
-    // لو الرد يحتوي بيانات كاملة (pay/fixed)، حدّث مباشرة بدون طلب ثاني
-    if(j.currentMonth){
-      D=j;render();ss('ok','متزامن');
-    } else {
-      await loadData();
-    }
+    // بعد الحفظ نحمّل البيانات لكن القائمة المحلية ستحمي التحديث
+    await loadData();
     return true;
   }catch(e){toast('تعذّر الحفظ',1);ss('E','خطأ');return false;}
 }
@@ -577,26 +592,37 @@ function buildNames(pre){
 document.getElementById('payMonth').addEventListener('change',()=>buildNames(null));
 async function doPay(name){
   const month=document.getElementById('payMonth').value;
-  // تحقق محلي من التكرار
+  const key=name+'|'+month;
+
+  // تحقق من التكرار — محلي أولاً
   const mp=month===D.currentMonth
     ?D.payments||{}
     :(D.archive&&D.archive[month]?D.archive[month].payments||{}:{});
-  if(mp[name]){
+  if(localPaid[key]||mp[name]){
     toast('تم تسجيل هذه الدفعة مسبقاً ✅');
     closeModal('payModal');
     return;
   }
+
   closeModal('payModal');
-  // تحديث فوري للواجهة
+
+  // سجّل فوراً في القائمة المحلية الدائمة
+  const now=new Date();
+  const dd=String(now.getDate()).padStart(2,'0');
+  const mm2=String(now.getMonth()+1).padStart(2,'0');
+  const dateStr=dd+'/'+mm2+'/'+now.getFullYear();
+  const FUNDS={عايشة:{مصاريف:0,طوارئ:12},البراء:{مصاريف:12,طوارئ:0},فاطمة:{مصاريف:6,طوارئ:6},بلقيس:{مصاريف:12,طوارئ:0},عبدالله:{مصاريف:12,طوارئ:0}};
+  localPaid[key]=Object.assign({},FUNDS[name]||{مصاريف:12,طوارئ:0},{date:dateStr});
+
+  // حدّث الواجهة فوراً ونهائياً
   if(month===D.currentMonth){
     if(!D.payments) D.payments={};
-    const now=new Date();
-    const dd=String(now.getDate()).padStart(2,'0');
-    const mm=String(now.getMonth()+1).padStart(2,'0');
-    D.payments[name]={مصاريف:0,طوارئ:0,date:`${dd}/${mm}/${now.getFullYear()} ...`};
+    D.payments[name]=localPaid[key];
     renderPayments();
   }
-  await apiCall(`action=pay&name=${enc(name)}&month=${enc(month)}`);
+
+  // أرسل للشيت في الخلفية
+  await apiCall('action=pay&name='+enc(name)+'&month='+enc(month));
 }
 
 // ========== FIXED ==========
